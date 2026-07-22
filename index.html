@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visual Masterpiece</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Cyberpunk RPG</title>
     <style>
         * {
             margin: 0;
@@ -11,164 +11,117 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
+            touch-action: none;
         }
 
         body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #030308;
-            font-family: sans-serif;
-            cursor: crosshair;
+            background-color: #050508;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
-        /* 靜態與動態背景光暈 (純 CSS 氛圍層) */
-        .ambient-layer {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            pointer-events: none;
-            z-index: 1;
-            opacity: 0.6;
-            mix-blend-mode: screen;
-            filter: blur(80px);
-        }
-
-        .blob {
+        #game-canvas {
             position: absolute;
-            border-radius: 50%;
-            animation: float 20s infinite alternate ease-in-out;
-        }
-
-        .blob-1 {
-            top: 10%;
-            left: 15%;
-            width: 45vw;
-            height: 45vw;
-            background: radial-gradient(circle, rgba(112, 0, 255, 0.8) 0%, rgba(0, 0, 0, 0) 70%);
-            animation-duration: 22s;
-        }
-
-        .blob-2 {
-            bottom: 5%;
-            right: 10%;
-            width: 50vw;
-            height: 50vw;
-            background: radial-gradient(circle, rgba(0, 240, 255, 0.7) 0%, rgba(0, 0, 0, 0) 70%);
-            animation-duration: 18s;
-            animation-direction: alternate-reverse;
-        }
-
-        .blob-3 {
-            top: 40%;
-            left: 35%;
-            width: 35vw;
-            height: 35vw;
-            background: radial-gradient(circle, rgba(255, 0, 128, 0.6) 0%, rgba(0, 0, 0, 0) 70%);
-            animation-duration: 25s;
-        }
-
-        @keyframes float {
-            0% {
-                transform: translate(0, 0) scale(1) rotate(0deg);
-            }
-            50% {
-                transform: translate(8%, 10%) scale(1.15) rotate(180deg);
-            }
-            100% {
-                transform: translate(-5%, -8%) scale(0.9) rotate(360deg);
-            }
-        }
-
-        /* 主 Canvas 渲染層 */
-        #webgl-canvas {
-            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 2;
+            z-index: 1;
         }
 
-        /* 視效切換 UI - 純圖示微雕控制列 */
-        .ui-container {
+        /* HUD 狀態血條 (無文字極簡設計) */
+        .hud-overlay {
             position: fixed;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 24px;
+            left: 24px;
             z-index: 10;
             display: flex;
-            gap: 20px;
-            padding: 12px 24px;
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 40px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
-            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
         }
 
-        .ui-container:hover {
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.2);
+        .bar-container {
+            width: 140px;
+            height: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            padding: 2px;
         }
 
-        .btn-icon {
-            width: 44px;
-            height: 44px;
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.2s ease;
+        }
+
+        .hp-bar { background: linear-gradient(90deg, #ff3b30, #ff9500); width: 100%; }
+        .exp-bar { background: linear-gradient(90deg, #00f0ff, #7000ff); width: 45%; }
+
+        /* 虛擬搖桿 (Joystick) */
+        .joystick-zone {
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
-            border: none;
-            background: transparent;
-            cursor: pointer;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            z-index: 10;
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
-            outline: none;
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .btn-icon svg {
-            width: 20px;
-            height: 20px;
-            stroke: rgba(255, 255, 255, 0.5);
-            fill: none;
-            stroke-width: 1.5;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            transition: all 0.3s ease;
-        }
-
-        .btn-icon:hover {
-            transform: scale(1.15);
-        }
-
-        .btn-icon:hover svg {
-            stroke: #ffffff;
-            filter: drop-shadow(0 0 8px rgba(255,255,255,0.8));
-        }
-
-        .btn-icon.active svg {
-            stroke: #00f0ff;
-            filter: drop-shadow(0 0 10px rgba(0,240,255,0.9));
-        }
-
-        .btn-icon.active::after {
-            content: '';
-            position: absolute;
-            bottom: -4px;
-            width: 4px;
-            height: 4px;
-            background: #00f0ff;
+        .joystick-knob {
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            box-shadow: 0 0 8px #00f0ff;
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.25);
+            transition: transform 0.05s ease-out;
         }
 
-        /* 螢幕頂級 Vignette 遮罩 (增強劇院級沉浸感) */
+        /* 攻擊技能按鈕 */
+        .btn-attack {
+            position: fixed;
+            bottom: 45px;
+            right: 40px;
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            background: rgba(255, 59, 48, 0.2);
+            border: 1.5px solid rgba(255, 59, 48, 0.6);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+            box-shadow: 0 0 20px rgba(255, 59, 48, 0.3);
+            cursor: pointer;
+        }
+
+        .btn-attack:active {
+            transform: scale(0.9);
+            background: rgba(255, 59, 48, 0.5);
+        }
+
+        .btn-attack svg {
+            width: 32px;
+            height: 32px;
+            fill: #ffffff;
+        }
+
+        /* 劇院級暗角 */
         .vignette {
             position: fixed;
             top: 0;
@@ -177,285 +130,299 @@
             height: 100vh;
             pointer-events: none;
             z-index: 5;
-            background: radial-gradient(circle, transparent 50%, rgba(3, 3, 8, 0.85) 100%);
+            background: radial-gradient(circle, transparent 60%, rgba(5, 5, 8, 0.85) 100%);
         }
     </style>
 </head>
 <body>
 
-    <!-- 氛圍光暈背景層 -->
-    <div class="ambient-layer">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
+    <!-- HUD 血條與經驗條 -->
+    <div class="hud-overlay">
+        <div class="bar-container"><div class="bar-fill hp-bar" id="hp-fill"></div></div>
+        <div class="bar-container" style="width: 100px; height: 6px;"><div class="bar-fill exp-bar" id="exp-fill"></div></div>
     </div>
 
-    <!-- WebGL 互動畫布 -->
-    <canvas id="webgl-canvas"></canvas>
+    <!-- 遊戲 Canvas -->
+    <canvas id="game-canvas"></canvas>
 
-    <!-- 劇院暗角 -->
+    <!-- 暗角 -->
     <div class="vignette"></div>
 
-    <!-- 無文字 控制選單 -->
-    <div class="ui-container">
-        <!-- 模式 1: 幾何與網格 -->
-        <button class="btn-icon active" data-mode="0">
-            <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-        </button>
-        <!-- 模式 2: 流體粒子 -->
-        <button class="btn-icon" data-mode="1">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="12" cy="5" r="2"/></svg>
-        </button>
-        <!-- 模式 3: 環形波浪場 -->
-        <button class="btn-icon" data-mode="2">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/><path d="M12 7a5 5 0 0 0 0 10"/></svg>
-        </button>
-        <div style="width: 1px; height: 20px; background: rgba(255,255,255,0.1); align-self: center;"></div>
-        <!-- 色彩切換 1 -->
-        <button class="btn-icon" data-theme="0">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill: rgba(0, 240, 255, 0.6); stroke: none;"/></svg>
-        </button>
-        <!-- 色彩切換 2 -->
-        <button class="btn-icon" data-theme="1">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill: rgba(255, 0, 128, 0.6); stroke: none;"/></svg>
-        </button>
+    <!-- 觸控控制（虛擬搖桿與攻擊） -->
+    <div class="joystick-zone" id="joystick-base">
+        <div class="joystick-knob" id="joystick-knob"></div>
     </div>
 
-    <!-- 載入 Three.js CDN -->
+    <button class="btn-attack" id="btn-attack">
+        <svg viewBox="0 0 24 24"><path d="M14.5 13.5L3 22v-3.5l11.5-8.5M21 3l-7.5 7.5 3 3L24 6l-3-3zM3 2l8.5 11.5L8 15 2 3.5V2h1z"/></svg>
+    </button>
+
+    <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- 核心 Scene & WebGL 初始化 ---
-        const canvas = document.getElementById('webgl-canvas');
+        // --- 1. Scene & 鏡頭系統 ---
+        const canvas = document.getElementById('game-canvas');
         const scene = new THREE.Scene();
-        
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 30;
+        scene.background = new THREE.Color(0x06060c);
+        scene.fog = new THREE.FogExp2(0x06060c, 0.02);
 
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
 
-        // --- 變數與狀態管理 ---
-        let currentMode = 0;
-        let currentTheme = 0;
-        const mouse = { x: 0, y: 0, targetX: 0, targetY: 0, press: 0 };
-        const clock = new THREE.Clock();
+        // --- 2. 光影設定 (賽博霓光) ---
+        const ambientLight = new THREE.AmbientLight(0x404060, 1.5);
+        scene.add(ambientLight);
 
-        const themes = [
-            { c1: new THREE.Color(0x00f0ff), c2: new THREE.Color(0x7000ff), bg: 0x030308 },
-            { c1: new THREE.Color(0xff0080), c2: new THREE.Color(0xff8000), bg: 0x080305 }
-        ];
+        const dirLight = new THREE.DirectionalLight(0xffb070, 1.8);
+        dirLight.position.set(20, 40, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
 
-        // --- 物件層級 1: 3D 變形幾何網格 (Morphing Polyhedron Mesh) ---
-        const meshGroup = new THREE.Group();
-        scene.add(meshGroup);
+        // 玩家發光點光源
+        const playerLight = new THREE.PointLight(0x00f0ff, 3, 12);
+        scene.add(playerLight);
 
-        const sphereGeo = new THREE.IcosahedronGeometry(10, 64);
-        const posAttr = sphereGeo.attributes.position;
-        const vertexPositions = posAttr.array.slice(); // 保存原始位置
+        // --- 3. 浮空科幻擂台 (Stage) ---
+        const floorGeo = new THREE.CylinderGeometry(28, 28, 2, 64);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x10121b, roughness: 0.6, metalness: 0.4 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.position.y = -1;
+        floor.receiveShadow = true;
+        scene.add(floor);
 
-        const meshMat = new THREE.MeshBasicMaterial({
-            wireframe: true,
-            color: themes[0].c1,
-            transparent: true,
-            opacity: 0.25
-        });
-        const mainMesh = new THREE.Mesh(sphereGeo, meshMat);
-        meshGroup.add(mainMesh);
+        // 外圍光環
+        const ringGeo = new THREE.RingGeometry(27.5, 28, 64);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.02;
+        scene.add(ring);
 
-        // --- 物件層級 2: 高密度流體粒子場 (Fluid Particle Field) ---
-        const particleCount = 12000;
-        const particleGeo = new THREE.BufferGeometry();
-        const particlePos = new Float32Array(particleCount * 3);
-        const particleVel = new Float32Array(particleCount * 3);
-        const particleOrig = new Float32Array(particleCount * 3);
-
-        for (let i = 0; i < particleCount * 3; i += 3) {
-            const x = (Math.random() - 0.5) * 80;
-            const y = (Math.random() - 0.5) * 80;
-            const z = (Math.random() - 0.5) * 80;
-            
-            particlePos[i] = x;
-            particlePos[i+1] = y;
-            particlePos[i+2] = z;
-
-            particleOrig[i] = x;
-            particleOrig[i+1] = y;
-            particleOrig[i+2] = z;
-
-            particleVel[i] = 0;
-            particleVel[i+1] = 0;
-            particleVel[i+2] = 0;
+        // 浮空水晶環境柱
+        for(let i = 0; i < 12; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 12 + Math.random() * 13;
+            const crystalGeo = new THREE.ConeGeometry(1.2, 4, 5);
+            const crystalMat = new THREE.MeshStandardMaterial({ color: 0x7000ff, roughness: 0.2, emissive: 0x200050 });
+            const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+            crystal.position.set(Math.cos(angle) * dist, 2, Math.sin(angle) * dist);
+            crystal.rotation.x = (Math.random() - 0.5) * 0.4;
+            crystal.rotation.z = (Math.random() - 0.5) * 0.4;
+            crystal.castShadow = true;
+            scene.add(crystal);
         }
 
-        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+        // --- 4. 玩家角色 (Player) ---
+        const playerGroup = new THREE.Group();
+        scene.add(playerGroup);
 
-        // 產生軟粒子 Texture
-        const createParticleTexture = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            grad.addColorStop(0, 'rgba(255,255,255,1)');
-            grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
-            grad.addColorStop(1, 'rgba(255,255,255,0)');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 64, 64);
-            const texture = new THREE.CanvasTexture(canvas);
-            return texture;
+        // 身體
+        const bodyGeo = new THREE.CylinderGeometry(0.55, 0.4, 1.5, 16);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.2, metalness: 0.6 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.9;
+        body.castShadow = true;
+        playerGroup.add(body);
+
+        // 頭部 (發光面具)
+        const headGeo = new THREE.SphereGeometry(0.35, 16, 16);
+        const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.set(0, 1.4, 0.25);
+        playerGroup.add(head);
+
+        // 武器: 霓光長劍
+        const swordGroup = new THREE.Group();
+        const bladeGeo = new THREE.CylinderGeometry(0.06, 0.02, 2.2, 8);
+        const bladeMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+        const blade = new THREE.Mesh(bladeGeo, bladeMat);
+        blade.position.y = 1.1;
+        swordGroup.add(blade);
+        swordGroup.position.set(0.65, 0.9, 0.2);
+        swordGroup.rotation.x = Math.PI / 4;
+        playerGroup.add(swordGroup);
+
+        // --- 5. 敵人生成系統 (Enemies) ---
+        const enemies = [];
+        function spawnEnemy() {
+            if (enemies.length >= 6) return;
+            const enemyGroup = new THREE.Group();
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 12 + Math.random() * 10;
+
+            const eGeo = new THREE.OctahedronGeometry(0.85);
+            const eMat = new THREE.MeshStandardMaterial({ color: 0xff3b30, roughness: 0.3, emissive: 0x600000 });
+            const eMesh = new THREE.Mesh(eGeo, eMat);
+            eMesh.position.y = 0.9;
+            eMesh.castShadow = true;
+            enemyGroup.add(eMesh);
+
+            // 敵人群區域光
+            const eLight = new THREE.PointLight(0xff3b30, 1, 5);
+            eLight.position.y = 0.9;
+            enemyGroup.add(eLight);
+
+            enemyGroup.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+            scene.add(enemyGroup);
+            enemies.push({ group: enemyGroup, mesh: eMesh, hp: 100, speed: 0.045 + Math.random() * 0.02 });
+        }
+
+        for(let i = 0; i < 4; i++) spawnEnemy();
+
+        // --- 6. 操控系統 (WASD + 手機虛擬搖桿) ---
+        const keys = {};
+        const joystick = { x: 0, y: 0, active: false };
+
+        window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        // 搖桿事件
+        const joyBase = document.getElementById('joystick-base');
+        const joyKnob = document.getElementById('joystick-knob');
+
+        const handleTouchMove = (e) => {
+            const touch = e.touches[0];
+            const rect = joyBase.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const maxDist = 42;
+
+            if (dist > maxDist) {
+                dx = (dx / dist) * maxDist;
+                dy = (dy / dist) * maxDist;
+            }
+
+            joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+            joystick.x = dx / maxDist;
+            joystick.y = dy / maxDist;
         };
 
-        const particleMat = new THREE.PointsMaterial({
-            size: 0.6,
-            map: createParticleTexture(),
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            color: themes[0].c2
+        joyBase.addEventListener('touchstart', (e) => { joystick.active = true; handleTouchMove(e); });
+        window.addEventListener('touchmove', (e) => { if (joystick.active) handleTouchMove(e); });
+        window.addEventListener('touchend', () => {
+            joystick.active = false;
+            joystick.x = 0; joystick.y = 0;
+            joyKnob.style.transform = 'translate(0px, 0px)';
         });
 
-        const particleSystem = new THREE.Points(particleGeo, particleMat);
-        scene.add(particleSystem);
+        // 攻擊動作
+        let isAttacking = false;
+        let attackTimer = 0;
+        const attackBtn = document.getElementById('btn-attack');
 
-        // --- 互動事件綁定 ---
-        window.addEventListener('mousemove', (e) => {
-            mouse.targetX = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.targetY = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
+        function triggerAttack() {
+            if (isAttacking) return;
+            isAttacking = true;
+            attackTimer = 0;
 
-        window.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 0) {
-                mouse.targetX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-                mouse.targetY = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
-            }
-        });
+            // 揮劍近戰打擊檢測
+            enemies.forEach((enemy, idx) => {
+                const dist = playerGroup.position.distanceTo(enemy.group.position);
+                if (dist < 3.8) {
+                    enemy.hp -= 50;
+                    // 被擊退（Knockback）
+                    const knockback = enemy.group.position.clone().sub(playerGroup.position).normalize().multiplyScalar(1.6);
+                    enemy.group.position.add(knockback);
 
-        window.addEventListener('mousedown', () => mouse.press = 1.0);
-        window.addEventListener('mouseup', () => mouse.press = 0.0);
-
-        // UI 按鈕控制
-        const modeBtns = document.querySelectorAll('[data-mode]');
-        modeBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                modeBtns.forEach(b => b.classList.remove('active'));
-                const target = e.currentTarget;
-                target.classList.add('active');
-                currentMode = parseInt(target.getAttribute('data-mode'));
+                    if (enemy.hp <= 0) {
+                        scene.remove(enemy.group);
+                        enemies.splice(idx, 1);
+                        setTimeout(spawnEnemy, 2500);
+                    }
+                }
             });
-        });
+        }
 
-        const themeBtns = document.querySelectorAll('[data-theme]');
-        themeBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const target = e.currentTarget;
-                currentTheme = parseInt(target.getAttribute('data-theme'));
-            });
-        });
+        attackBtn.addEventListener('click', triggerAttack);
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') triggerAttack(); });
 
-        // --- 動態渲染迴圈 (Render Loop) ---
+        // --- 7. 遊戲主迴圈 (Loop) ---
+        const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
-
+            const delta = clock.getDelta();
             const time = clock.getElapsedTime();
-            
-            // 滑鼠平滑移動插值 (Lerp)
-            mouse.x += (mouse.targetX - mouse.x) * 0.05;
-            mouse.y += (mouse.targetY - mouse.y) * 0.05;
 
-            // 漸變顏色 transition
-            const targetColor1 = themes[currentTheme].c1;
-            const targetColor2 = themes[currentTheme].c2;
-            meshMat.color.lerp(targetColor1, 0.05);
-            particleMat.color.lerp(targetColor2, 0.05);
+            // 1. 移動控制計算
+            let moveX = 0;
+            let moveZ = 0;
 
-            // --- 模式 0: 立體網格數值波動 ---
-            const positions = sphereGeo.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-                const ox = vertexPositions[i];
-                const oy = vertexPositions[i+1];
-                const oz = vertexPositions[i+2];
+            if (keys['w'] || keys['arrowup']) moveZ -= 1;
+            if (keys['s'] || keys['arrowdown']) moveZ += 1;
+            if (keys['a'] || keys['arrowleft']) moveX -= 1;
+            if (keys['d'] || keys['arrowright']) moveX += 1;
 
-                // Perlin-like 複合波浪算式
-                const wave = Math.sin(time * 2 + ox * 0.2) * Math.cos(time * 1.5 + oy * 0.2) * Math.sin(time + oz * 0.2);
-                const scale = 1 + wave * (currentMode === 0 ? 0.25 : 0.08) + (mouse.press * 0.2);
-
-                positions[i] = ox * scale;
-                positions[i+1] = oy * scale;
-                positions[i+2] = oz * scale;
+            if (joystick.active) {
+                moveX = joystick.x;
+                moveZ = joystick.y;
             }
-            sphereGeo.attributes.position.needsUpdate = true;
 
-            // 旋轉主幾何
-            meshGroup.rotation.x = time * 0.1 + mouse.y * 0.5;
-            meshGroup.rotation.y = time * 0.15 + mouse.x * 0.5;
+            const moveVec = new THREE.Vector3(moveX, 0, moveZ);
+            if (moveVec.length() > 0.1) {
+                moveVec.normalize().multiplyScalar(0.13);
+                playerGroup.position.add(moveVec);
 
-            // --- 粒子系統物理行為 ---
-            const pPos = particleGeo.attributes.position.array;
-            const raycasterVector = new THREE.Vector3(mouse.x * 25, mouse.y * 25, 0);
+                // 地圖邊界限制
+                if (playerGroup.position.length() > 26) playerGroup.position.setLength(26);
 
-            for (let i = 0; i < particleCount; i++) {
-                const idx = i * 3;
-                let px = pPos[idx];
-                let py = pPos[idx+1];
-                let pz = pPos[idx+2];
+                // 角轉向
+                const targetAngle = Math.atan2(moveVec.x, moveVec.z);
+                playerGroup.rotation.y += (targetAngle - playerGroup.rotation.y) * 0.2;
 
-                if (currentMode === 1) {
-                    // 流體吸附與微擾模式
-                    const dx = raycasterVector.x - px;
-                    const dy = raycasterVector.y - py;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
+                // 跑步律動
+                body.position.y = 0.9 + Math.sin(time * 14) * 0.08;
+            } else {
+                body.position.y = 0.9 + Math.sin(time * 3) * 0.03; // 待機浮動
+            }
 
-                    if (dist < 15) {
-                        const force = (15 - dist) / 15;
-                        particleVel[idx] -= (dx / dist) * force * 0.2;
-                        particleVel[idx+1] -= (dy / dist) * force * 0.2;
-                    }
+            // 更新玩家燈光位置
+            playerLight.position.copy(playerGroup.position).add(new THREE.Vector3(0, 2, 0));
 
-                    // 回復原位力
-                    particleVel[idx] += (particleOrig[idx] - px) * 0.01;
-                    particleVel[idx+1] += (particleOrig[idx+1] - py) * 0.01;
-                    particleVel[idx+2] += (particleOrig[idx+2] - pz) * 0.01;
-
-                    // 阻尼
-                    particleVel[idx] *= 0.92;
-                    particleVel[idx+1] *= 0.92;
-                    particleVel[idx+2] *= 0.92;
-
-                    pPos[idx] += particleVel[idx];
-                    pPos[idx+1] += particleVel[idx+1];
-                    pPos[idx+2] += particleVel[idx+2];
-
-                } else if (currentMode === 2) {
-                    // 環形漩渦模式
-                    const angle = time * 0.5 + (px * 0.05);
-                    const radius = Math.sqrt(particleOrig[idx] * particleOrig[idx] + particleOrig[idx+2] * particleOrig[idx+2]);
-                    
-                    pPos[idx] = Math.cos(angle + radius) * radius;
-                    pPos[idx+1] = particleOrig[idx+1] + Math.sin(time * 2 + radius) * 2;
-                    pPos[idx+2] = Math.sin(angle + radius) * radius;
-
-                } else {
-                    // 預設漂浮與回彈
-                    pPos[idx] = particleOrig[idx] + Math.sin(time + particleOrig[idx+1]) * 1.5;
-                    pPos[idx+1] = particleOrig[idx+1] + Math.cos(time + particleOrig[idx]) * 1.5;
-                    pPos[idx+2] = particleOrig[idx+2] + Math.sin(time * 0.5) * 1.5;
+            // 2. 揮劍攻擊動畫
+            if (isAttacking) {
+                attackTimer += delta * 12;
+                swordGroup.rotation.z = -Math.sin(attackTimer) * 2.2;
+                swordGroup.rotation.y = Math.cos(attackTimer) * 1.5;
+                if (attackTimer >= Math.PI) {
+                    isAttacking = false;
+                    swordGroup.rotation.set(Math.PI / 4, 0, 0);
                 }
             }
-            particleGeo.attributes.position.needsUpdate = true;
 
-            // 鏡頭微幅跟隨滑鼠 (Parallax depth effect)
-            camera.position.x += (mouse.x * 5 - camera.position.x) * 0.05;
-            camera.position.y += (mouse.y * 5 - camera.position.y) * 0.05;
-            camera.lookAt(scene.position);
+            // 3. 怪物 AI (追蹤 + 自轉)
+            enemies.forEach(enemy => {
+                enemy.mesh.rotation.x += 0.02;
+                enemy.mesh.rotation.y += 0.03;
+
+                const dir = playerGroup.position.clone().sub(enemy.group.position).normalize();
+                enemy.group.position.add(dir.multiplyScalar(enemy.speed));
+
+                // 浮動震盪
+                enemy.mesh.position.y = 0.9 + Math.sin(time * 4 + enemy.group.position.x) * 0.2;
+            });
+
+            // 4. 追蹤攝影機 (Follow Camera)
+            const camTargetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 15, 18));
+            camera.position.lerp(camTargetPos, 0.08);
+            camera.lookAt(playerGroup.position.clone().add(new THREE.Vector3(0, 1, 0)));
 
             renderer.render(scene, camera);
         }
 
         animate();
 
-        // RWD 視窗自適應
+        // RWD 自適應
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
