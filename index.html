@@ -1,0 +1,468 @@
+code = '''<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Masterpiece</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #030308;
+            font-family: sans-serif;
+            cursor: crosshair;
+        }
+
+        /* 靜態與動態背景光暈 (純 CSS 氛圍層) */
+        .ambient-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.6;
+            mix-blend-mode: screen;
+            filter: blur(80px);
+        }
+
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            animation: float 20s infinite alternate ease-in-out;
+        }
+
+        .blob-1 {
+            top: 10%;
+            left: 15%;
+            width: 45vw;
+            height: 45vw;
+            background: radial-gradient(circle, rgba(112, 0, 255, 0.8) 0%, rgba(0, 0, 0, 0) 70%);
+            animation-duration: 22s;
+        }
+
+        .blob-2 {
+            bottom: 5%;
+            right: 10%;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(0, 240, 255, 0.7) 0%, rgba(0, 0, 0, 0) 70%);
+            animation-duration: 18s;
+            animation-direction: alternate-reverse;
+        }
+
+        .blob-3 {
+            top: 40%;
+            left: 35%;
+            width: 35vw;
+            height: 35vw;
+            background: radial-gradient(circle, rgba(255, 0, 128, 0.6) 0%, rgba(0, 0, 0, 0) 70%);
+            animation-duration: 25s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0) scale(1) rotate(0deg);
+            }
+            50% {
+                transform: translate(8%, 10%) scale(1.15) rotate(180deg);
+            }
+            100% {
+                transform: translate(-5%, -8%) scale(0.9) rotate(360deg);
+            }
+        }
+
+        /* 主 Canvas 渲染層 */
+        #webgl-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        /* 視效切換 UI - 純圖示微雕控制列 */
+        .ui-container {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 20px;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .ui-container:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+
+        .btn-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            outline: none;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .btn-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: rgba(255, 255, 255, 0.5);
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: all 0.3s ease;
+        }
+
+        .btn-icon:hover {
+            transform: scale(1.15);
+        }
+
+        .btn-icon:hover svg {
+            stroke: #ffffff;
+            filter: drop-shadow(0 0 8px rgba(255,255,255,0.8));
+        }
+
+        .btn-icon.active svg {
+            stroke: #00f0ff;
+            filter: drop-shadow(0 0 10px rgba(0,240,255,0.9));
+        }
+
+        .btn-icon.active::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            width: 4px;
+            height: 4px;
+            background: #00f0ff;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #00f0ff;
+        }
+
+        /* 螢幕頂級 Vignette 遮罩 (增強劇院級沉浸感) */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 5;
+            background: radial-gradient(circle, transparent 50%, rgba(3, 3, 8, 0.85) 100%);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 氛圍光暈背景層 -->
+    <div class="ambient-layer">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- WebGL 互動畫布 -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- 劇院暗角 -->
+    <div class="vignette"></div>
+
+    <!-- 無文字 控制選單 -->
+    <div class="ui-container">
+        <!-- 模式 1: 幾何與網格 -->
+        <button class="btn-icon active" data-mode="0">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        </button>
+        <!-- 模式 2: 流體粒子 -->
+        <button class="btn-icon" data-mode="1">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="12" cy="5" r="2"/></svg>
+        </button>
+        <!-- 模式 3: 環形波浪場 -->
+        <button class="btn-icon" data-mode="2">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/><path d="M12 7a5 5 0 0 0 0 10"/></svg>
+        </button>
+        <div style="width: 1px; height: 20px; background: rgba(255,255,255,0.1); align-self: center;"></div>
+        <!-- 色彩切換 1 -->
+        <button class="btn-icon" data-theme="0">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill: rgba(0, 240, 255, 0.6); stroke: none;"/></svg>
+        </button>
+        <!-- 色彩切換 2 -->
+        <button class="btn-icon" data-theme="1">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" style="fill: rgba(255, 0, 128, 0.6); stroke: none;"/></svg>
+        </button>
+    </div>
+
+    <!-- 載入 Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- 核心 Scene & WebGL 初始化 ---
+        const canvas = document.getElementById('webgl-canvas');
+        const scene = new THREE.Scene();
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // --- 變數與狀態管理 ---
+        let currentMode = 0;
+        let currentTheme = 0;
+        const mouse = { x: 0, y: 0, targetX: 0, targetY: 0, press: 0 };
+        const clock = new THREE.Clock();
+
+        const themes = [
+            { c1: new THREE.Color(0x00f0ff), c2: new THREE.Color(0x7000ff), bg: 0x030308 },
+            { c1: new THREE.Color(0xff0080), c2: new THREE.Color(0xff8000), bg: 0x080305 }
+        ];
+
+        // --- 物件層級 1: 3D 變形幾何網格 (Morphing Polyhedron Mesh) ---
+        const meshGroup = new THREE.Group();
+        scene.add(meshGroup);
+
+        const sphereGeo = new THREE.IcosahedronGeometry(10, 64);
+        const posAttr = sphereGeo.attributes.position;
+        const vertexPositions = posAttr.array.slice(); // 保存原始位置
+
+        const meshMat = new THREE.MeshBasicMaterial({
+            wireframe: true,
+            color: themes[0].c1,
+            transparent: true,
+            opacity: 0.25
+        });
+        const mainMesh = new THREE.Mesh(sphereGeo, meshMat);
+        meshGroup.add(mainMesh);
+
+        // --- 物件層級 2: 高密度流體粒子場 (Fluid Particle Field) ---
+        const particleCount = 12000;
+        const particleGeo = new THREE.BufferGeometry();
+        const particlePos = new Float32Array(particleCount * 3);
+        const particleVel = new Float32Array(particleCount * 3);
+        const particleOrig = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+            const x = (Math.random() - 0.5) * 80;
+            const y = (Math.random() - 0.5) * 80;
+            const z = (Math.random() - 0.5) * 80;
+            
+            particlePos[i] = x;
+            particlePos[i+1] = y;
+            particlePos[i+2] = z;
+
+            particleOrig[i] = x;
+            particleOrig[i+1] = y;
+            particleOrig[i+2] = z;
+
+            particleVel[i] = 0;
+            particleVel[i+1] = 0;
+            particleVel[i+2] = 0;
+        }
+
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+
+        // 產生軟粒子 Texture
+        const createParticleTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 64, 64);
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        };
+
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.6,
+            map: createParticleTexture(),
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            color: themes[0].c2
+        });
+
+        const particleSystem = new THREE.Points(particleGeo, particleMat);
+        scene.add(particleSystem);
+
+        // --- 互動事件綁定 ---
+        window.addEventListener('mousemove', (e) => {
+            mouse.targetX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.targetY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                mouse.targetX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.targetY = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+            }
+        });
+
+        window.addEventListener('mousedown', () => mouse.press = 1.0);
+        window.addEventListener('mouseup', () => mouse.press = 0.0);
+
+        // UI 按鈕控制
+        const modeBtns = document.querySelectorAll('[data-mode]');
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                modeBtns.forEach(b => b.classList.remove('active'));
+                const target = e.currentTarget;
+                target.classList.add('active');
+                currentMode = parseInt(target.getAttribute('data-mode'));
+            });
+        });
+
+        const themeBtns = document.querySelectorAll('[data-theme]');
+        themeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget;
+                currentTheme = parseInt(target.getAttribute('data-theme'));
+            });
+        });
+
+        // --- 動態渲染迴圈 (Render Loop) ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+            
+            // 滑鼠平滑移動插值 (Lerp)
+            mouse.x += (mouse.targetX - mouse.x) * 0.05;
+            mouse.y += (mouse.targetY - mouse.y) * 0.05;
+
+            // 漸變顏色 transition
+            const targetColor1 = themes[currentTheme].c1;
+            const targetColor2 = themes[currentTheme].c2;
+            meshMat.color.lerp(targetColor1, 0.05);
+            particleMat.color.lerp(targetColor2, 0.05);
+
+            // --- 模式 0: 立體網格數值波動 ---
+            const positions = sphereGeo.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                const ox = vertexPositions[i];
+                const oy = vertexPositions[i+1];
+                const oz = vertexPositions[i+2];
+
+                // Perlin-like 複合波浪算式
+                const wave = Math.sin(time * 2 + ox * 0.2) * Math.cos(time * 1.5 + oy * 0.2) * Math.sin(time + oz * 0.2);
+                const scale = 1 + wave * (currentMode === 0 ? 0.25 : 0.08) + (mouse.press * 0.2);
+
+                positions[i] = ox * scale;
+                positions[i+1] = oy * scale;
+                positions[i+2] = oz * scale;
+            }
+            sphereGeo.attributes.position.needsUpdate = true;
+
+            // 旋轉主幾何
+            meshGroup.rotation.x = time * 0.1 + mouse.y * 0.5;
+            meshGroup.rotation.y = time * 0.15 + mouse.x * 0.5;
+
+            // --- 粒子系統物理行為 ---
+            const pPos = particleGeo.attributes.position.array;
+            const raycasterVector = new THREE.Vector3(mouse.x * 25, mouse.y * 25, 0);
+
+            for (let i = 0; i < particleCount; i++) {
+                const idx = i * 3;
+                let px = pPos[idx];
+                let py = pPos[idx+1];
+                let pz = pPos[idx+2];
+
+                if (currentMode === 1) {
+                    // 流體吸附與微擾模式
+                    const dx = raycasterVector.x - px;
+                    const dy = raycasterVector.y - py;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 15) {
+                        const force = (15 - dist) / 15;
+                        particleVel[idx] -= (dx / dist) * force * 0.2;
+                        particleVel[idx+1] -= (dy / dist) * force * 0.2;
+                    }
+
+                    // 回復原位力
+                    particleVel[idx] += (particleOrig[idx] - px) * 0.01;
+                    particleVel[idx+1] += (particleOrig[idx+1] - py) * 0.01;
+                    particleVel[idx+2] += (particleOrig[idx+2] - pz) * 0.01;
+
+                    // 阻尼
+                    particleVel[idx] *= 0.92;
+                    particleVel[idx+1] *= 0.92;
+                    particleVel[idx+2] *= 0.92;
+
+                    pPos[idx] += particleVel[idx];
+                    pPos[idx+1] += particleVel[idx+1];
+                    pPos[idx+2] += particleVel[idx+2];
+
+                } else if (currentMode === 2) {
+                    // 環形漩渦模式
+                    const angle = time * 0.5 + (px * 0.05);
+                    const radius = Math.sqrt(particleOrig[idx] * particleOrig[idx] + particleOrig[idx+2] * particleOrig[idx+2]);
+                    
+                    pPos[idx] = Math.cos(angle + radius) * radius;
+                    pPos[idx+1] = particleOrig[idx+1] + Math.sin(time * 2 + radius) * 2;
+                    pPos[idx+2] = Math.sin(angle + radius) * radius;
+
+                } else {
+                    // 預設漂浮與回彈
+                    pPos[idx] = particleOrig[idx] + Math.sin(time + particleOrig[idx+1]) * 1.5;
+                    pPos[idx+1] = particleOrig[idx+1] + Math.cos(time + particleOrig[idx]) * 1.5;
+                    pPos[idx+2] = particleOrig[idx+2] + Math.sin(time * 0.5) * 1.5;
+                }
+            }
+            particleGeo.attributes.position.needsUpdate = true;
+
+            // 鏡頭微幅跟隨滑鼠 (Parallax depth effect)
+            camera.position.x += (mouse.x * 5 - camera.position.x) * 0.05;
+            camera.position.y += (mouse.y * 5 - camera.position.y) * 0.05;
+            camera.lookAt(scene.position);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // RWD 視窗自適應
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
+
+
